@@ -1,0 +1,115 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # windows
+          #- os: windows-latest
+          #  preset: windows-x64-debug
+          #  path: x64/Debug
+
+          - os: windows-latest
+            preset: windows-x64-release
+            path: x64/Release
+
+          #- os: windows-latest
+          #  preset: windows-x86-debug
+          #  path: x86/Debug
+
+          #- os: windows-latest
+          #  preset: windows-x86-release
+          #  path: x86/Release
+
+          # linux
+          #- os: ubuntu-latest
+          #  preset: linux-x64-debug
+          #  path: x64/Debug
+
+          - os: ubuntu-latest
+            preset: linux-x64-release
+            path: x64/Release
+
+          #- os: ubuntu-latest
+          #  preset: linux-x86-debug
+          #  path: x86/Debug
+
+          #- os: ubuntu-latest
+          #  preset: linux-x86-release
+          #  path: x86/Release
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+      with:
+        submodules: false
+
+    - name: Install Build Dependencies (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        choco install -y `
+        ninja
+
+    - name: Install Build Dependencies (Linux)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get install -y software-properties-common
+        sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+        sudo apt-get install -y g++-13
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+        sudo apt-get install -y \
+        ninja-build
+
+    - name: Install CMake
+      uses: jwlawson/actions-setup-cmake@v2
+
+    # due to path length limitations on windows, vcpkg root and vcpkg_installed
+    # paths must be as short as possible, otherwise the build of dependencies
+    # might fail
+    - name: Set Environment Variables (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        subst x: ${{ github.workspace }}
+        echo "WORKSPACE=x:/" >> $env:GITHUB_ENV
+        echo "VCPKG_ROOT=${{ env.WORKSPACE }}vcpkg" >> $env:GITHUB_ENV
+
+    # these limitations do not exist on linux
+    - name: Set Environment Variables (Linux)
+      if: runner.os == 'Linux'
+      run: |
+          echo "WORKSPACE=${{ github.workspace }}" >> $GITHUB_ENV
+          echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
+
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgDirectory: ${{ env.VCPKG_ROOT }}
+        doNotCache: false
+        runVcpkgInstall: false
+
+    - name: Invoke Developer Command Prompt for VS
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: CMake Configure, Build and Install
+      working-directory: ${{ env.WORKSPACE }}
+      run: |
+        cmake --preset ${{ matrix.preset }}
+        cmake --build --preset ${{ matrix.preset }} --target install
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ matrix.preset }}
+        path: bin/${{ matrix.path }}

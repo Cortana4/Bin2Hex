@@ -1,0 +1,7 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "builtin-baseline": "6f1ddd6b6878e7e66fcc35c65ba1d8feec2e01f8",
+    "dependencies": [
+        
+    ]
+}
